@@ -647,6 +647,109 @@ describe("Balance Integrity", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Idempotency & Race Conditions
+// ---------------------------------------------------------------------------
+
+describe("Idempotency & Race Conditions", () => {
+  test("POST /api/v1/trades rejects missing X-Idempotency-Key", async () => {
+    // The `api` wrapper auto-injects if missing, so we use raw `fetch`
+    const res = await fetch(`${BASE_URL}/api/v1/trades`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Account-Id": ACCOUNT_ID,
+      },
+      body: JSON.stringify({
+        type: "MARKET",
+        baseCurrency: "EUR",
+        quoteCurrency: "USDT",
+        side: "BUY",
+        amount: 1,
+      }),
+    });
+    expect(res.status).toBe(400);
+
+    const body = await res.json();
+    expect(body.error.code).toBe("VALIDATION_ERROR");
+  });
+
+  test("Identical trades with the same idempotency key are only executed once", async () => {
+    const idempotencyKey = crypto.randomUUID();
+    const payload = {
+      type: "MARKET",
+      baseCurrency: "EUR",
+      quoteCurrency: "USDT",
+      side: "SELL",
+      amount: 1,
+    };
+
+    // Fire two identical requests with the same idempotency key concurrently
+    const [res1, res2] = await Promise.all([
+      api("/api/v1/trades", {
+        method: "POST",
+        headers: { "X-Idempotency-Key": idempotencyKey },
+        body: JSON.stringify(payload),
+      }),
+      api("/api/v1/trades", {
+        method: "POST",
+        headers: { "X-Idempotency-Key": idempotencyKey },
+        body: JSON.stringify(payload),
+      }),
+    ]);
+
+    expect(res1.status).toBe(201);
+    expect(res2.status).toBe(201);
+
+    const data1 = await res1.json();
+    const data2 = await res2.json();
+
+    // Both should return the exact same trade ID and timestamp
+    expect(data1.data.id).toBe(data2.data.id);
+    expect(data1.data.executedAt).toBe(data2.data.executedAt);
+    expect(data1.data.type).toBe("MARKET");
+  });
+
+  test("Concurrent trades for the same RFQ quote are protected by DB lock (Race Condition)", async () => {
+    // 1. Create a quote
+    const quoteRes = await api("/api/v1/quotes", {
+      method: "POST",
+      body: JSON.stringify({
+        baseCurrency: "BTC",
+        quoteCurrency: "USDT",
+        side: "BUY",
+        amount: 0.001,
+      }),
+    });
+    const { data: quote } = await quoteRes.json();
+
+    const payload = {
+      type: "RFQ",
+      quoteId: quote.id,
+    };
+
+    // 2. Fire two requests with DIFFERENT idempotency keys concurrently
+    // This bypasses the API idempotency cache and forces a DB-level race condition
+    const [res1, res2] = await Promise.all([
+      api("/api/v1/trades", {
+        method: "POST",
+        headers: { "X-Idempotency-Key": crypto.randomUUID() },
+        body: JSON.stringify(payload),
+      }),
+      api("/api/v1/trades", {
+        method: "POST",
+        headers: { "X-Idempotency-Key": crypto.randomUUID() },
+        body: JSON.stringify(payload),
+      }),
+    ]);
+
+    // One should succeed (201), the other should fail with 409 (already executed)
+    const statuses = [res1.status, res2.status];
+    expect(statuses).toContain(201);
+    expect(statuses).toContain(409);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 404 for unknown routes
 // ---------------------------------------------------------------------------
 
