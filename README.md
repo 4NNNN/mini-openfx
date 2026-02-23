@@ -123,25 +123,20 @@ X-Account-Id: demo-account
 
 Two tiers:
 
-| File | What it tests | Needs server? |
+| File | What it tests | Runs in CI? |
 |---|---|---|
-| `money.test.ts` | Scaled integer arithmetic | No |
-| `services.test.ts` | Balance/quote/trade DB operations (in-memory SQLite) | No |
-| `api.test.ts` | Full HTTP round-trips via live server | Yes |
+| `money.test.ts` | Scaled integer arithmetic | ✅ Yes |
+| `services.test.ts` | Balance/quote/trade DB operations (in-memory SQLite) | ✅ Yes |
+| `api.test.ts` | Full HTTP round-trips against a live server | ❌ Local only |
 
-**Run unit + service tests (standalone):**
-```bash
-bun test src/test/money.test.ts src/test/services.test.ts
-```
-
-**Run all tests including API tests:**
+`api.test.ts` requires a live server with real Binance API access — it cannot run in CI. Run it locally:
 ```bash
 bun run db:seed
 bun run dev &
 bun test src/test/api.test.ts
 ```
 
-**CI** (GitHub Actions) runs all three automatically on every push — it seeds the DB, starts the server in the background, waits for the `/health` endpoint, then runs the API test suite. See [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+**CI** runs `money.test.ts` and `services.test.ts` on every push — both are fully self-contained (in-memory SQLite, no network). See [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
 ---
 

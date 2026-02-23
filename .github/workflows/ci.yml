@@ -20,32 +20,7 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      # ── Unit + DB integration tests (no server needed) ──────────────────────
-      - name: Run unit and service tests
+      # Unit and DB integration tests — no external dependencies, no server needed.
+      # api.test.ts requires a live Binance connection and is run locally only.
+      - name: Run tests
         run: bun test src/test/money.test.ts src/test/services.test.ts
-
-      # ── API integration tests (server required) ──────────────────────────────
-      - name: Seed database
-        run: bun run db:seed
-
-      - name: Start server
-        run: bun run start &
-        env:
-          PORT: 3000
-
-      - name: Wait for server to be ready
-        run: |
-          for i in $(seq 1 20); do
-            if curl -sf http://localhost:3000/health > /dev/null; then
-              echo "Server is up"
-              exit 0
-            fi
-            echo "Waiting... ($i)"
-            sleep 1
-          done
-          echo "Server did not start in time" && exit 1
-
-      - name: Run API integration tests
-        run: bun test src/test/api.test.ts
-        env:
-          API_BASE_URL: http://localhost:3000

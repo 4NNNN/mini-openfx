@@ -1,13 +1,14 @@
 import { describe, test, expect, beforeAll } from "bun:test";
 
 // ---------------------------------------------------------------------------
-// API integration tests — runs against a live MiniOpenFX server
+// API integration tests — run locally against a live MiniOpenFX server
 // ---------------------------------------------------------------------------
 //
 // Usage:
 //   1. Start the server:  bun run dev
-//   2. Run these tests:   API_BASE_URL=http://localhost:3000 bun test src/test/api.test.ts
+//   2. Run these tests:   bun test src/test/api.test.ts
 //
+// Requires a live Binance API connection — cannot run in CI.
 // They make real HTTP requests to the running server
 // and verify correct behavior end-to-end including DB state changes.
 // ---------------------------------------------------------------------------
