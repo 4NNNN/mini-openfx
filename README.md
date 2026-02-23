@@ -10,9 +10,9 @@ A minimal, readable FX quoting and trading API. Built to be correct, not complex
 
 ## Submission Details
 
-**Code Repository**: Full working source code available on GitHub.
-**Documentation**: This README explains all architecture choices and trade-offs.
-**Automated CI**: GitHub Actions workflow passes correctly and is visibly badged.
+- **Code Repository**: Full working source code available on GitHub.
+- **Documentation**: This README explains all architecture choices and trade-offs.
+- **Automated CI**: GitHub Actions workflow passes correctly and is visibly badged.
 
 ---
 
@@ -30,11 +30,11 @@ Requires [Bun](https://bun.sh) v1.0+. SQLite is bundled natively so no external 
 
 ## What It Does
 
-**Live prices**: Proxies Binance bid and ask for supported pairs with a 5 second cache.
-**RFQ quotes**: Locks a spread adjusted price for 30 seconds before execution.
-**Market trades**: Executes immediately at live mid price with no quote required.
-**Balance tracking**: Per currency ledger updated atomically on every trade.
-**Trade history**: Full record with side, type, price, and both currency amounts.
+- **Live prices** - Proxies Binance bid and ask for supported pairs with a 5 second cache.
+- **RFQ quotes** - Locks a spread adjusted price for 30 seconds before execution.
+- **Market trades** - Executes immediately at live mid price with no quote required.
+- **Balance tracking** - Per currency ledger updated atomically on every trade.
+- **Trade history** - Full record with side, type, price, and both currency amounts.
 
 ---
 
@@ -44,11 +44,11 @@ The assignment asked to focus on clarity, correctness, and simplicity over compl
 
 This is a focused API with four core functions and two currency pairs. Reaching for Express, Postgres, Redis, and JWT would be an overkill. Instead:
 
-**Bun**: Runs HTTP natively via `Bun.serve` so no framework is needed for a five route API.
-**SQLite**: Handles persistence with zero ops overhead requiring no server, no connection pool, and no configuration.
-**Drizzle**: Gives type safe queries without hiding the SQL, which matters when atomicity is critical.
-**In memory Maps**: Serve as the rate limiter and price cache providing clean and sufficient usage for a single process. The reason I implemented the rate limiter with an array and not a double ended queue(overkill), was to explore and solve the same question which was asked to me in the previous interview round.
-**Header based auth**: Keeps the domain logic free of token concerns making it easy to read and test.
+- **Bun**: Runs HTTP natively via `Bun.serve` so no framework is needed for a five route API.
+- **SQLite**: Handles persistence with zero ops overhead requiring no server, no connection pool, and no configuration.
+- **Drizzle**: Gives type safe queries without hiding the SQL, which matters when atomicity is critical.
+- **In memory Maps**: Serve as the rate limiter and price cache providing clean and sufficient usage for a single process. The reason I implemented the rate limiter with an array and not a double ended queue(overkill), was to explore and solve the same question which was asked to me in the previous interview round.
+- **Header based auth**: Keeps the domain logic free of token concerns making it easy to read and test.
 
 The result is a codebase where every line is either business logic or directly serving it.
 
@@ -60,33 +60,33 @@ These are the genuine trade offs made, and why they were the right call for this
 
 ### 1. SQLite over Postgres: Zero ops vs Concurrency
 
-**What was chosen:** Embedded SQLite in WAL mode.
-**What you gain:** Zero ops deployment without a server process, no network hop to the DB, and no connection pool to configure. WAL mode allows concurrent reads alongside writes and delivers fast sequential write throughput on a single server.
-**What you give up:** SQLite uses database level write locks, so concurrent write threads queue behind each other. Postgres uses MVCC (Multi-Version Concurrency Control) with row level locking, which allows thousands of users to write simultaneously without blocking. For this scope representing a single server deployment evaluated for correctness, SQLite is the right call. Postgres earns its complexity when horizontal scaling is actually required.
+- **What was chosen:** Embedded SQLite in WAL mode.
+- **What you gain:** Zero ops deployment without a server process, no network hop to the DB, and no connection pool to configure. WAL mode allows concurrent reads alongside writes and delivers fast sequential write throughput on a single server.
+- **What you give up:** SQLite uses database level write locks, so concurrent write threads queue behind each other. Postgres uses MVCC (Multi-Version Concurrency Control) with row level locking, which allows thousands of users to write simultaneously without blocking. For this scope representing a single server deployment evaluated for correctness, SQLite is the right call. Postgres earns its complexity when horizontal scaling is actually required.
 
 ### 2. Scaled Integers over Floats: Correctness vs Simplicity
 
-**What was chosen:** All monetary amounts stored as `amount × 10^8` integers, with `BigInt` for intermediate multiplication.
-**What you gain:** Absolute mathematical correctness. IEEE 754 floating point arithmetic is not safe for financial ledgers because precision loss is a fatal flaw in a double entry system. Scaled integers make every rounding decision deterministic.
-**What you give up:** Code simplicity. Every amount must be serialized to scaled form on the way in and deserialized to a decimal string on the way out. BigInt adds verbosity throughout. The verbosity is load bearing though because a large trade would silently overflow `Number.MAX_SAFE_INTEGER` using regular numbers.
+- **What was chosen:** All monetary amounts stored as `amount × 10^8` integers, with `BigInt` for intermediate multiplication.
+- **What you gain:** Absolute mathematical correctness. IEEE 754 floating point arithmetic is not safe for financial ledgers because precision loss is a fatal flaw in a double entry system. Scaled integers make every rounding decision deterministic.
+- **What you give up:** Code simplicity. Every amount must be serialized to scaled form on the way in and deserialized to a decimal string on the way out. BigInt adds verbosity throughout. The verbosity is load bearing though because a large trade would silently overflow `Number.MAX_SAFE_INTEGER` using regular numbers.
 
 ### 3. In Memory Maps over Redis: Speed vs Scalability
 
-**What was chosen:** The sliding window rate limiter and price cache both live in plain `Map` objects inside the Bun process.
-**What you gain:** O(1) access with zero infrastructure dependency, meaning no Redis server, no network round trip, and no serialization cost.
-**What you give up:** State is tied to the process so a restart clears both the rate limit history and the price cache. You also cannot horizontally scale since each server instance would maintain independent counters, making the per account limit bypassable behind a load balancer. Redis is the correct fix when that becomes a real requirement.
+- **What was chosen:** The sliding window rate limiter and price cache both live in plain `Map` objects inside the Bun process.
+- **What you gain:** O(1) access with zero infrastructure dependency, meaning no Redis server, no network round trip, and no serialization cost.
+- **What you give up:** State is tied to the process so a restart clears both the rate limit history and the price cache. You also cannot horizontally scale since each server instance would maintain independent counters, making the per account limit bypassable behind a load balancer. Redis is the correct fix when that becomes a real requirement.
 
 ### 4. Bun.serve over Express: Control vs Ecosystem
 
-**What was chosen:** Bun native HTTP server with a hand rolled router.
-**What you gain:** A small attack surface, low memory footprint, and complete visibility into the request lifecycle. Every route, middleware, and error handler is readable in full.
-**What you give up:** The ecosystem. Express and NestJS bring pre built auth guards, validation decorators, logging middleware, and a large plugin community. For a four function API, that ecosystem adds more surface area than the core logic so it is not a trade worth making here.
+- **What was chosen:** Bun native HTTP server with a hand rolled router.
+- **What you gain:** A small attack surface, low memory footprint, and complete visibility into the request lifecycle. Every route, middleware, and error handler is readable in full.
+- **What you give up:** The ecosystem. Express and NestJS bring pre built auth guards, validation decorators, logging middleware, and a large plugin community. For a four function API, that ecosystem adds more surface area than the core logic so it is not a trade worth making here.
 
 ### 5. Header Auth over JWT: Testability vs Production Security
 
-**What was chosen:** A plain `X-Account-Id` header is used as an auth stub.
-**What you gain:** The domain layer concerning quoting, balance debits, and double entry inserts has zero opinion about how the account ID was obtained. Service logic is cleanly testable without mocking token libraries or managing signing keys in tests.
-**What you give up:** Production readiness. The header is fully trusted with no signature verification. Real token validation would slot in at the middleware layer without touching any service code, but it needs to be there before this handles real money.
+- **What was chosen:** A plain `X-Account-Id` header is used as an auth stub.
+- **What you gain:** The domain layer concerning quoting, balance debits, and double entry inserts has zero opinion about how the account ID was obtained. Service logic is cleanly testable without mocking token libraries or managing signing keys in tests.
+- **What you give up:** Production readiness. The header is fully trusted with no signature verification. Real token validation would slot in at the middleware layer without touching any service code, but it needs to be there before this handles real money.
 
 ---
 
@@ -253,7 +253,6 @@ curl -X POST http://localhost:3000/api/v1/trades \
 ```bash
 bun test
 ```
-
-**money.test.ts**: Scaled integer arithmetic and BigInt overflow edge cases.
-**services.test.ts**: Balance operations, quote lifecycle, and trade execution against in memory SQLite.
-**api.test.ts**: End to end integration tests against the live server requiring network.
+- **money.test.ts**: Scaled integer arithmetic and BigInt overflow edge cases.
+- **services.test.ts**: Balance operations, quote lifecycle, and trade execution against in memory SQLite.
+- **api.test.ts**: End to end integration tests against the live server requiring network.
