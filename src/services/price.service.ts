@@ -12,7 +12,6 @@ import { parsePrice } from "../money";
 import { Errors } from "../errors";
 
 // In-memory TTL cache for price data
-
 interface CacheEntry<T> {
   value: T;
   expiresAt: number;
@@ -38,8 +37,7 @@ class PriceCache<K, V> {
   }
 }
 
-// Price Service — fetches from Binance, caches results
-
+// Price Service fetches from Binance, caches results
 const bookTickerCache = new PriceCache<string, BinanceBookTicker>();
 const priceCache = new PriceCache<string, BinanceTickerPrice>();
 

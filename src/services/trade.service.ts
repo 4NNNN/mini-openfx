@@ -7,9 +7,7 @@ import { toScaled, fromScaled, scaledMultiply } from "../money";
 import { Errors } from "../errors";
 import { SUPPORTED_PAIRS, type Side, type TradeResponse } from "../types";
 
-// ---------------------------------------------------------------------------
-// Trade Service — executes market orders and RFQ trades
-// ---------------------------------------------------------------------------
+// Trade Service executes market orders and RFQ trades
 
 /**
  * Execute an RFQ trade using a previously obtained quote.

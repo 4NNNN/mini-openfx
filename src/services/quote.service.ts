@@ -91,7 +91,7 @@ export async function getQuote(accountId: string, quoteId: string): Promise<Quot
 
   if (!row || row.accountId !== accountId) throw Errors.notFound("Quote");
 
-  // Auto-expire if past TTL
+  // auto expire if past TTL
   if (row.status === "OPEN" && Date.now() > row.expiresAt) {
     await db
       .update(quotes)

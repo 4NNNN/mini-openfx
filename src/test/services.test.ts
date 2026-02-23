@@ -5,10 +5,7 @@ import { eq, and } from "drizzle-orm";
 import * as schema from "../db/schema";
 import { toScaled, fromScaled } from "../money";
 
-// ---------------------------------------------------------------------------
-// Integration tests — run against in-memory SQLite
-// ---------------------------------------------------------------------------
-
+// Integration tests run against in-memory SQLite
 function setupTestDb() {
   const sqlite = new Database(":memory:");
   sqlite.exec("PRAGMA foreign_keys = ON;");

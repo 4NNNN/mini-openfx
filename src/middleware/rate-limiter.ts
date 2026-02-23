@@ -1,7 +1,7 @@
 import { Errors } from "../errors";
 import { RATE_LIMIT_MAX, RATE_LIMIT_WINDOW_MS } from "../types";
 
-// Sliding window rate limiter — per-account, using plain array. You could use the double ended queue data structure to optimize the time complexity of the check method.
+// Sliding window rate limiter per-account, using plain array. You could use the double ended queue data structure to optimize the time complexity of the check method.
 
 /**
  * Tracks request timestamps per account using a sliding window.

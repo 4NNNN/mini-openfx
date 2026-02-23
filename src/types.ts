@@ -109,7 +109,7 @@ export const SPREAD_MARKUP = 0.001;
 export const PRICE_CACHE_TTL_MS = 5_000;
 
 // Rate limiter: max requests per window per account
-export const RATE_LIMIT_MAX = 60;
+export const RATE_LIMIT_MAX = 100;
 
 // Rate limiter: sliding window in milliseconds
 export const RATE_LIMIT_WINDOW_MS = 60_000;

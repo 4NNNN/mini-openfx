@@ -81,7 +81,7 @@ async function seed() {
       .onConflictDoNothing();
   }
 
-  console.log("✓ Seeded demo account with balances:");
+  console.log("Seeded demo account with balances:");
   for (const currency of CURRENCIES) {
     console.log(`  ${currency}: ${INITIAL_BALANCES[currency].toLocaleString()}`);
   }

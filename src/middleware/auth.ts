@@ -1,6 +1,6 @@
 import { Errors } from "../errors";
 
-// Auth middleware — extracts X-Account-Id from request headers
+// Auth middleware, extracts X-Account-Id from request headers
 
 /**
  * Extracts and validates the account ID from the request.
