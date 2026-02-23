@@ -9,7 +9,7 @@ import { describe, test, expect, beforeAll } from "bun:test";
 // They make real HTTP requests to the running server
 // and verify correct behavior end-to-end including DB state changes.
 
-const BASE_URL = process.env.API_BASE_URL || "http://localhost:3000";
+const BASE_URL = "https://mini-openfx-production.up.railway.app";
 const ACCOUNT_ID = "demo-account";
 
 function api(path: string, options?: RequestInit): Promise<Response> {
