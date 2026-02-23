@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/4NNNN/mini-openfx/actions/workflows/ci.yml/badge.svg)](https://github.com/4NNNN/mini-openfx/actions/workflows/ci.yml)
 
-A minimal, readable FX quoting and trading API. Built to be correct, not complex.
+A minimal, readable FX quoting and trading API
 
 **Live API:** https://mini-openfx-production.up.railway.app
 
@@ -47,7 +47,7 @@ This is a focused API with four core functions and two currency pairs. Reaching 
 - **Bun**: Runs HTTP natively via `Bun.serve` so no framework is needed for a five route API.
 - **SQLite**: Handles persistence with zero ops overhead requiring no server, no connection pool, and no configuration.
 - **Drizzle**: Gives type safe queries without hiding the SQL, which matters when atomicity is critical.
-- **In memory Maps**: Serve as the rate limiter and price cache providing clean and sufficient usage for a single process. The reason I implemented the rate limiter with an array and not a double ended queue(overkill), was to explore and solve the same question which was asked to me in the previous interview round.
+- **In memory Maps**: Serve as the rate limiter and price cache providing clean and sufficient usage for a single process. **The reason I implemented the rate limiter with an array and not a double ended queue(overkill)**, was to explore and solve the same question which was asked to me in the previous interview round.
 - **Header based auth**: Keeps the domain logic free of token concerns making it easy to read and test.
 
 The result is a codebase where every line is either business logic or directly serving it.
