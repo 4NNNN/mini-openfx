@@ -1,7 +1,4 @@
-// ---------------------------------------------------------------------------
 // Custom error class for consistent API error responses
-// ---------------------------------------------------------------------------
-
 export type ErrorCode =
   | "VALIDATION_ERROR"
   | "UNAUTHORIZED"
@@ -34,10 +31,7 @@ export class AppError extends Error {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Factory helpers for common errors
-// ---------------------------------------------------------------------------
-
 export const Errors = {
   validation: (msg: string) => new AppError("VALIDATION_ERROR", msg, 400),
   unauthorized: (msg = "Missing or invalid X-Account-Id header") =>

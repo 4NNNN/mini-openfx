@@ -8,8 +8,7 @@ import * as quoteService from "./services/quote.service";
 import * as tradeService from "./services/trade.service";
 import type { Side } from "./types";
 
-// Bun's built-in router attaches matched path params to the request object.
-// This type extends the standard Request to surface them for TypeScript.
+// type matching for bun requests
 type BunRequest = Request & { params: Record<string, string> };
 
 // Zod schemas for request validation
@@ -40,7 +39,6 @@ const tradeSchema = z.discriminatedUnion("type", [
 ]);
 
 // Error handling helpers
-
 function errorResponse(error: AppError): Response {
   return Response.json(error.toJSON(), { status: error.statusCode });
 }
@@ -106,7 +104,6 @@ function pub(
 }
 
 // Server entry point
-
 const PORT = parseInt(process.env.PORT || "3000", 10);
 
 const server = Bun.serve({
