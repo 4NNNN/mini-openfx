@@ -4,7 +4,7 @@
 
 A minimal, readable FX quoting and trading API. Built to be correct, not complex.
 
-**Live API:** *[Public deployment URL to be added]*
+**Live API:** https://mini-openfx-production.up.railway.app
 
 ---
 
