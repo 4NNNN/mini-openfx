@@ -114,5 +114,5 @@ export const RATE_LIMIT_MAX = 100;
 // Rate limiter: sliding window in milliseconds
 export const RATE_LIMIT_WINDOW_MS = 60_000;
 
-// Binance base URL
-export const BINANCE_BASE_URL = "https://api.binance.com";
+// Binance base URL (using data-api.binance.vision as it avoids 451 geo-blocks on US/SG cloud servers)
+export const BINANCE_BASE_URL = "https://data-api.binance.vision";
