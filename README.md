@@ -111,6 +111,8 @@ WHERE id = ? AND status = 'OPEN' AND expires_at > ?
 ```
 Only one caller can flip the quote from `OPEN` to `EXECUTED`. Anyone else is rejected before any balance is touched. The debit, credit, quote update, and trade insert all run inside a single SQLite transaction so any failure rolls everything back.
 
+**API Idempotency:** The API requires an `X-Idempotency-Key` header for `POST /api/v1/trades`. An in-memory cache checks and resolves duplicate or retried concurrent requests, safely mapping them to the exact same trade promise without complex database schema constraints.
+
 ---
 
 ## Database Schema
@@ -177,6 +179,7 @@ Auth required on all endpoints except `/health` and `/api/v1/prices`:
 ```
 X-Account-Id: <account-uuid>
 ```
+`POST /api/v1/trades` additionally requires an `X-Idempotency-Key` header (e.g., a UUID) to safely prevent duplicate executions during network retries.
 
 | Method | Path | Description |
 |---|---|---|
@@ -211,6 +214,7 @@ curl -X POST http://localhost:3000/api/v1/quotes \
 ```bash
 curl -X POST http://localhost:3000/api/v1/trades \
   -H "X-Account-Id: demo-account" \
+  -H "X-Idempotency-Key: $(uuidgen)" \
   -H "Content-Type: application/json" \
   -d '{
     "type": "RFQ",
@@ -222,6 +226,7 @@ curl -X POST http://localhost:3000/api/v1/trades \
 ```bash
 curl -X POST http://localhost:3000/api/v1/trades \
   -H "X-Account-Id: demo-account" \
+  -H "X-Idempotency-Key: $(uuidgen)" \
   -H "Content-Type: application/json" \
   -d '{
     "type": "MARKET",

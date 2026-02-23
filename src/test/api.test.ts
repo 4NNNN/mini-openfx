@@ -13,13 +13,19 @@ const BASE_URL = "https://mini-openfx-production.up.railway.app";
 const ACCOUNT_ID = "demo-account";
 
 function api(path: string, options?: RequestInit): Promise<Response> {
+  const headers: any = {
+    "Content-Type": "application/json",
+    "X-Account-Id": ACCOUNT_ID,
+    ...options?.headers,
+  };
+
+  if (options?.method === "POST" && path === "/api/v1/trades" && !headers["X-Idempotency-Key"]) {
+    headers["X-Idempotency-Key"] = crypto.randomUUID();
+  }
+
   return fetch(`${BASE_URL}${path}`, {
     ...options,
-    headers: {
-      "Content-Type": "application/json",
-      "X-Account-Id": ACCOUNT_ID,
-      ...options?.headers,
-    },
+    headers,
   });
 }
 
@@ -456,6 +462,7 @@ describe("Trades - RFQ", () => {
       headers: {
         "Content-Type": "application/json",
         "X-Account-Id": "attacker-account",
+        "X-Idempotency-Key": crypto.randomUUID(),
       },
       body: JSON.stringify({ type: "RFQ", quoteId: quote.id }),
     });

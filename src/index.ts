@@ -38,6 +38,9 @@ const tradeSchema = z.discriminatedUnion("type", [
   rfqTradeSchema,
 ]);
 
+// In-memory cache for idempotency of trade requests
+const idempotencyCache = new Map<string, Promise<any>>();
+
 // Error handling helpers
 function errorResponse(error: AppError): Response {
   return Response.json(error.toJSON(), { status: error.statusCode });
@@ -171,27 +174,46 @@ const server = Bun.serve({
         return Response.json({ data: history });
       }),
       POST: authed(async (req, accountId) => {
-        const body = await req.json();
-        const parsed = tradeSchema.parse(body);
+        const idempotencyKey = req.headers.get("X-Idempotency-Key");
+        if (!idempotencyKey) {
+          throw Errors.validation("Missing X-Idempotency-Key header");
+        }
 
-        let trade;
-        if (parsed.type === "RFQ") {
-          trade = await tradeService.executeRfqTrade(accountId, parsed.quoteId);
-        } else {
-          if (parsed.baseCurrency === parsed.quoteCurrency) {
-            throw Errors.validation(
-              "baseCurrency and quoteCurrency must be different",
+        const cacheKey = `${accountId}:${idempotencyKey}`;
+        if (idempotencyCache.has(cacheKey)) {
+          const trade = await idempotencyCache.get(cacheKey);
+          return Response.json({ data: trade }, { status: 201 });
+        }
+
+        const tradePromise = (async () => {
+          const body = await req.json();
+          const parsed = tradeSchema.parse(body);
+
+          if (parsed.type === "RFQ") {
+            return await tradeService.executeRfqTrade(accountId, parsed.quoteId);
+          } else {
+            if (parsed.baseCurrency === parsed.quoteCurrency) {
+              throw Errors.validation("baseCurrency and quoteCurrency must be different");
+            }
+            return await tradeService.executeMarketTrade(
+              accountId,
+              parsed.baseCurrency as string,
+              parsed.quoteCurrency as string,
+              parsed.side as Side,
+              parsed.amount,
             );
           }
-          trade = await tradeService.executeMarketTrade(
-            accountId,
-            parsed.baseCurrency as string,
-            parsed.quoteCurrency as string,
-            parsed.side as Side,
-            parsed.amount,
-          );
+        })();
+
+        idempotencyCache.set(cacheKey, tradePromise);
+
+        try {
+          const trade = await tradePromise;
+          return Response.json({ data: trade }, { status: 201 });
+        } catch (error) {
+          idempotencyCache.delete(cacheKey); // Allow retry on failure
+          throw error;
         }
-        return Response.json({ data: trade }, { status: 201 });
       }),
     },
 

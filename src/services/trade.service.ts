@@ -1,4 +1,4 @@
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import { db, sqlite } from "../db";
 import { quotes, trades } from "../db/schema";
 import * as balanceService from "./balance.service";
@@ -156,12 +156,16 @@ const executeTradeTx = sqlite.transaction(
     // Credit (atomic upsert)
     balanceService.credit(accountId, creditCurrency, creditAmount);
 
-    // Mark quote as executed if RFQ
+    // Mark quote as executed if RFQ (guarded update to prevent race conditions)
     if (quoteId) {
-      db.update(quotes)
+      const result = db.update(quotes)
         .set({ status: "EXECUTED" })
-        .where(eq(quotes.id, quoteId))
-        .run();
+        .where(and(eq(quotes.id, quoteId), eq(quotes.status, "OPEN")))
+        .run() as any;
+      
+      if (result.changes === 0) {
+        throw Errors.quoteAlreadyExecuted();
+      }
     }
 
     // Create trade record
