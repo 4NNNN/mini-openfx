@@ -20,7 +20,5 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      # Unit and DB integration tests — no external dependencies, no server needed.
-      # api.test.ts requires a live Binance connection and is run locally only.
       - name: Run tests
         run: bun test src/test/money.test.ts src/test/services.test.ts
