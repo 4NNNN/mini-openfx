@@ -461,6 +461,35 @@ describe("Trades - RFQ", () => {
     });
     expect(res.status).toBe(404);
   });
+
+  test("RFQ trade rejects valid quote after TTL has passed", async () => {
+    // Create a quote
+    const quoteRes = await api("/api/v1/quotes", {
+      method: "POST",
+      body: JSON.stringify({
+        baseCurrency: "BTC",
+        quoteCurrency: "USDT",
+        side: "SELL",
+        amount: 0.01,
+      }),
+    });
+    const { data: quote } = await quoteRes.json();
+
+    // The TTL for a quote is 30 seconds. Wait 31 seconds to ensure it expires.
+    await new Promise((resolve) => setTimeout(resolve, 31000));
+
+    // Attempt to execute the trade using the expired quote
+    const res = await api("/api/v1/trades", {
+      method: "POST",
+      body: JSON.stringify({ type: "RFQ", quoteId: quote.id }),
+    });
+
+    // The API should reject it with 400 and QUOTE_EXPIRED
+    expect(res.status).toBe(400);
+
+    const body = await res.json();
+    expect(body.error.code).toBe("QUOTE_EXPIRED");
+  }, 35000); // Give the test 35 seconds to run, as we wait for 31 seconds
 });
 
 // ---------------------------------------------------------------------------
