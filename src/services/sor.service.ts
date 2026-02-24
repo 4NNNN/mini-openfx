@@ -41,6 +41,8 @@ export async function getBestQuote(
     fetchCoinGecko(binanceBid, binanceAsk),
   ]);
 
+  console.log("results", results);
+
   const quotes:Quote[] = [];
 
   for(let i=0; i<results.length; i++){
