@@ -41,7 +41,7 @@ export async function getBestQuote(
     fetchCoinGecko(binanceBid, binanceAsk),
   ]);
 
-  console.log("results", results);
+  console.log("results", JSON.stringify(results));
 
   const quotes:Quote[] = [];
 
@@ -51,7 +51,7 @@ export async function getBestQuote(
     }
   }
 
-  console.log("quotes arr", quotes);
+  console.log("quotes arr", JSON.stringify(quotes));
 
   if (quotes.length === 0) {
     throw new Error("All pricing sources failed");
@@ -65,7 +65,7 @@ export async function getBestQuote(
   console.log("Bid", binanceBid);
   console.log("Ask", binanceAsk);
   console.log("side", side);
-  console.log("best quote", best);
+  console.log("best quote", JSON.stringify(best));
 
   return {
     price: side === "BUY" ? best.ask : best.bid,
