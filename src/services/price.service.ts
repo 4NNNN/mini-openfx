@@ -9,6 +9,7 @@ import {
   type SupportedPair,
 } from "../types";
 import { parsePrice } from "../money";
+import { getBestQuote } from "./sor.service";
 import { Errors } from "../errors";
 
 // In-memory TTL cache for price data
@@ -141,16 +142,11 @@ export async function getExecutionPrice(
   if (!pair) throw Errors.pairNotSupported(`${baseCurrency}_${quoteCurrency}`);
 
   const bookTicker = await fetchBookTicker(pair.symbol);
-  const bid = parsePrice(bookTicker.bidPrice);
-  const ask = parsePrice(bookTicker.askPrice);
+  const binanceBid = parsePrice(bookTicker.bidPrice);
+  const binanceAsk = parsePrice(bookTicker.askPrice);
+  const { price, bidPrice, askPrice } = await getBestQuote(binanceBid, binanceAsk, side);
 
-  // Apply spread markup
-  const price =
-    side === "BUY"
-      ? Math.round(ask * (1 + SPREAD_MARKUP))  // buyer pays slightly more
-      : Math.round(bid * (1 - SPREAD_MARKUP));  // seller receives slightly less
-
-  return { price, bidPrice: bid, askPrice: ask };
+  return { price, bidPrice, askPrice };
 }
 
 /**

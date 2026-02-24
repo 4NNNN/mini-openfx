@@ -10,6 +10,14 @@ export type TradeType = "MARKET" | "RFQ";
 // Quote lifecycle status
 export type QuoteStatus = "OPEN" | "EXECUTED" | "EXPIRED";
 
+// One Quote interface for all venues
+export interface Quote {
+  source: string;
+  bid: number;
+  ask: number;
+  liquidity: "tier1" | "tier2" | "tier3";
+}
+
 export interface PriceResponse {
   pair: string;
   bidPrice: string;
