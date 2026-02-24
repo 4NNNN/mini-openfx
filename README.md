@@ -31,6 +31,7 @@ Requires [Bun](https://bun.sh) v1.0+. SQLite is bundled natively so no external 
 ## What It Does
 
 - **Live prices** - Proxies Binance bid and ask for supported pairs with a 5 second cache.
+- **Quote Selection (Not Smart Order Routing)** - Aggregates quotes from multiple liquidity providers, selects the best rate for the customer, and executes the order at that single best venue. This is NOT split order routing. We execute at the single best venue, not split orders across multiple venues.
 - **RFQ quotes** - Locks a spread adjusted price for 30 seconds before execution.
 - **Market trades** - Executes immediately at live mid price with no quote required.
 - **Balance tracking** - Per currency ledger updated atomically on every trade.
