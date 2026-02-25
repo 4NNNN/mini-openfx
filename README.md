@@ -8,11 +8,11 @@ A minimal, readable FX quoting and trading API
 
 ---
 
-## Submission Details
+## Full-Scale OpenFX Engine — Production Architecture Reference
 
-- **Code Repository**: Full working source code available on GitHub.
-- **Documentation**: This README explains all architecture choices and trade-offs.
-- **Automated CI**: GitHub Actions workflow passes correctly and is visibly badged.
+> This diagram shows what a production grade FX trading engine looks like at full scale. The components below represent the real implementation targets when this system outgrows a single process.
+
+![OpenFX Engine full-scale architecture: Client Gateway, Sequencer/Message Bus, Risk Engine, OMS, Algo Engine, Smart Order Router, Venue Gateway, Market Data, Ledgers, Post-Trade, Reconciliation & Settlement](docs/openfx-engine-architecture.png)
 
 ---
 
