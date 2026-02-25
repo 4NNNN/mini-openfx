@@ -57,37 +57,61 @@ The result is a codebase where every line is either business logic or directly s
 
 ## Architecture & Trade-offs
 
-These are the genuine trade offs made, and why they were the right call for this scope.
+What was built, the trade off it carries, and the production correct upgrade path.
 
-### 1. SQLite over Postgres: Zero ops vs Concurrency
+---
 
-- **What was chosen:** Embedded SQLite in WAL mode.
-- **What you gain:** Zero ops deployment without a server process, no network hop to the DB, and no connection pool to configure. WAL mode allows concurrent reads alongside writes and delivers fast sequential write throughput on a single server.
-- **What you give up:** SQLite uses database level write locks, so concurrent write threads queue behind each other. Postgres uses MVCC (Multi-Version Concurrency Control) with row level locking, which allows thousands of users to write simultaneously without blocking. For this scope representing a single server deployment evaluated for correctness, SQLite is the right call. Postgres earns its complexity when horizontal scaling is actually required.
+### 1. Server Logic — RFQ, No Quote Push
 
-### 2. Scaled Integers over Floats: Correctness vs Simplicity
+**What is implemented:** `POST /api/v1/quotes` locks a price for 30 seconds and returns immediately. The quote is never pushed back to the client when it expires or changes — the client must poll `GET /api/v1/quotes/:id`. The quote execution in `executeTradeTx` is a synchronous SQLite transaction: debit, credit, mark executed, and insert trade, all committed or rolled back together in one `sqlite.transaction()` call.
 
-- **What was chosen:** All monetary amounts stored as `amount × 10^8` integers, with `BigInt` for intermediate multiplication.
-- **What you gain:** Absolute mathematical correctness. IEEE 754 floating point arithmetic is not safe for financial ledgers because precision loss is a fatal flaw in a double entry system. Scaled integers make every rounding decision deterministic.
-- **What you give up:** Code simplicity. Every amount must be serialized to scaled form on the way in and deserialized to a decimal string on the way out. BigInt adds verbosity throughout. The verbosity is load bearing though because a large trade would silently overflow `Number.MAX_SAFE_INTEGER` using regular numbers.
+- The RFQ quote is fetch-and-forget. There is no WebSocket, no SSE push, and no server-side expiry job. The server marks a quote `EXPIRED` lazily only when the client tries to execute it past the deadline.
+- This avoids the complexity of a background scheduler, a pubsub channel, and client side reconnection logic. For a 30-second TTL that is polled at execution time, lazy expiry is correct.
+- At scale, a real RFQ system streams quote updates over WebSocket so the client always holds the current price. The server runs a ticker that recomputes the quote mid as the market moves and broadcasts changes. The upgrade path here is an SSE endpoint per quote ID with a dedicated heartbeat goroutine/process.
 
-### 3. In Memory Maps over Redis: Speed vs Scalability
+---
 
-- **What was chosen:** The sliding window rate limiter and price cache both live in plain `Map` objects inside the Bun process.
-- **What you gain:** O(1) access with zero infrastructure dependency, meaning no Redis server, no network round trip, and no serialization cost.
-- **What you give up:** State is tied to the process so a restart clears both the rate limit history and the price cache. You also cannot horizontally scale since each server instance would maintain independent counters, making the per account limit bypassable behind a load balancer. Redis is the correct fix when that becomes a real requirement.
+### 2. Rate Limiting — Sliding Window over a Timestamp Array
 
-### 4. Bun.serve over Express: Control vs Ecosystem
+**What is implemented:** `RateLimiter` tracks per account request timestamps in a plain `Array`. On each call, timestamps older than the 60 second window are evicted from the front with `shift()`, and the remaining count is checked against the 60 request limit.
 
-- **What was chosen:** Bun native HTTP server with a hand rolled router.
-- **What you gain:** A small attack surface, low memory footprint, and complete visibility into the request lifecycle. Every route, middleware, and error handler is readable in full.
-- **What you give up:** The ecosystem. Express and NestJS bring pre built auth guards, validation decorators, logging middleware, and a large plugin community. For a four function API, that ecosystem adds more surface area than the core logic so it is not a trade worth making here.
+- This is the Sliding Window algorithm, most accurate of the five canonical options (Leaky Bucket, Token Bucket, Fixed Window, Sliding Log, Sliding Window). Fixed Window has a boundary vulnerability where a client can burst 2× the limit by firing at the tail of one window and the head of the next and sliding Window eliminates that.
+- `Array.shift()` is O(n) on every check. A double ended queue would give O(1) head removal, which matters when a single account can have hundreds of timestamps in the window.
+- The limiter lives in process memory. A load balancer with two nodes gives each account two independent counters, making the per account cap bypassable. The production fix is a Redis sorted set with an atomic Lua script: `ZREMRANGEBYSCORE` removes stale entries, `ZCARD` returns the count, and `ZADD` appends the new timestamp, all in one round trip with no race.
 
-### 5. Header Auth over JWT: Testability vs Production Security
+---
 
-- **What was chosen:** A plain `X-Account-Id` header is used as an auth stub.
-- **What you gain:** The domain layer concerning quoting, balance debits, and double entry inserts has zero opinion about how the account ID was obtained. Service logic is cleanly testable without mocking token libraries or managing signing keys in tests.
-- **What you give up:** Production readiness. The header is fully trusted with no signature verification. Real token validation would slot in at the middleware layer without touching any service code, but it needs to be there before this handles real money.
+### 3. Price Aggregation — Best Quote Selection
+
+**What is implemented:** `getBestQuote` in `sor.service.ts` fires `Promise.allSettled` against three sources (Binance real, MassiveFX mocked at ±0.01%, CoinGecko mocked at ±0.02%). The fulfilled quotes are collected into an array and sorted: ascending ask for BUY, descending bid for SELL. The first element wins.
+
+- `Array.sort` on three elements is effectively O(1) in practice, but the algorithm is O(n log n) for n venues. More critically sorting materialises all quotes before picking one, a linear scan with a running best would be O(n) with no allocation overhead.
+- A production SOR aggregator uses a min heap (priority queue) keyed on ask for BUY or bid for SELL. New venue quotes are pushed into the heap as they arrive; the best is always at the root in O(1). This also lets the aggregator stream partial results, return the best available quote after 80ms even if one slow venue has not responded rather than waiting for `allSettled`.
+
+---
+
+### 4. ACID Consistency — Atomic Debit as the Overdraft Guard
+
+**What is implemented:** Every trade runs inside `sqlite.transaction()`. The balance debit is a single `UPDATE` with the sufficiency check in the `WHERE` clause not a read followed by a conditional write. The quote status flip from `OPEN` to `EXECUTED` is a guarded `UPDATE WHERE status = 'OPEN'`. If zero rows change, the trade is rejected before any balance moves.
+
+```sql
+UPDATE balances SET amount = amount - ?
+WHERE account_id = ? AND currency = ? AND amount >= ?
+```
+
+- There is no gap between a balance read and a balance write. The check and the mutation are one atomic SQL statement. This is the textbook ACID isolation pattern: if two concurrent requests arrive for the same account, SQLite serialises writes.
+- The alternative, read balance in JS, check in application code, then write, is a read-modify-write cycle with a race window in the gap. Under concurrent load this produces double spends. This is the BASE model and it is a fatal flaw in any ledger.
+- At Postgres scale, row-level locks via `SELECT FOR UPDATE` or `FOR UPDATE SKIP LOCKED` give the same guarantee with MVCC concurrency. For event sourced systems, the debit becomes an append to an immutable ledger and the balance is a materialised view derived from the event log which makes replays, audits, and rollbacks first class operations.
+
+---
+
+### 5. SQLite in WAL Mode
+
+**What is implemented:** Drizzle ORM on top of Bun's native `bun:sqlite`. WAL (Write-Ahead Log) mode is enabled so readers never block writers and writers never block readers. All schema changes are managed through Drizzle migrations.
+
+- WAL mode allows any number of concurrent reads alongside a single write. On a single server this is sufficient trades serialise through the write lock and price reads proceed unblocked. The network hop to a remote database is eliminated entirely.
+- SQLite uses a database level write lock. Postgres uses MVCC with row-level locking so thousands of writers can proceed simultaneously without blocking each other. At high write concurrency — hundreds of trades per second from multiple accounts — SQLite's single write lock becomes the throughput ceiling.
+- The upgrade path is a drop in swap at the Drizzle layer: replace `drizzle(sqlite)` with `drizzle(pg)` and update the schema dialect. The service layer does not change. Postgres with a connection pool (PgBouncer in transaction mode) and a read replica handles horizontal read scaling. At higher volume still, the balance table shards by `account_id` using hash partitioning so write locks are per shard rather than global(Postgres handled sharding, collision techniques as well as partitioning internally).
 
 ---
 
