@@ -8,7 +8,7 @@ A minimal, readable FX quoting and trading API
 
 ---
 
-## Full-Scale OpenFX Engine — Production Architecture Reference
+## Architecture Reference
 
 > This diagram shows what a production grade FX trading engine looks like at full scale. The components below represent the real implementation targets when this system outgrows a single process.
 
