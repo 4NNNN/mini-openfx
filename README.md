@@ -6,7 +6,7 @@ A minimal, readable FX quoting and trading API
 
 **Live API:** https://mini-openfx-production.up.railway.app
 
-**api.test.ts**: You could just do a E2E integration test against the live hosted server
+**api.test.ts**: You can do a E2E integration test against the live hosted server using the below command
 ```bash
 bun test api.test.ts
 ```
@@ -45,17 +45,15 @@ Requires [Bun](https://bun.sh) v1.0+. SQLite is bundled natively so no external 
 
 ## Stack & Scope
 
-The assignment asked to focus on clarity, correctness, and simplicity over completeness. The stack was chosen to reflect exactly that. Every tool is proportional to the problem, so the evaluation can focus on product thinking, API design, and financial modelling rather than infrastructure configuration.
+The assignment asked to focus on clarity, correctness, and simplicity over completeness. The stack was chosen to reflect exactly that.
 
-This is a focused API with four core functions and two currency pairs. Reaching for Express, Postgres, Redis, and JWT would be an overkill. Instead:
+Reaching for Express, Postgres, Redis, and JWT would be an overkill. Instead:
 
 - **Bun**: Runs HTTP natively via `Bun.serve` so no framework is needed for a five route API.
 - **SQLite**: Handles persistence with zero ops overhead requiring no server, no connection pool, and no configuration.
 - **Drizzle**: Gives type safe queries without hiding the SQL, which matters when atomicity is critical.
-- **In memory Maps**: Serve as the rate limiter and price cache providing clean and sufficient usage for a single process. **The reason I implemented the rate limiter with an array and not a double ended queue(overkill)**, was to explore and solve the same question which was asked to me in the previous interview round.
-- **Header based auth**: Keeps the domain logic free of token concerns making it easy to read and test.
-
-The result is a codebase where every line is either business logic or directly serving it.
+- **In memory Maps**: Serve as the rate limiter and price cache providing clean and sufficient usage for a single process. **The reason I implemented the rate limiter with an array and not a double ended queue**, was to solve the same question which was asked to me in the previous interview round, also implemented the idempotency logic(2nd & 3rd question).
+- **Header based auth**: Kept the domain logic free of token concerns making it easy to test.
 
 ---
 
@@ -65,7 +63,7 @@ What was built, the trade off it carries, and the production correct upgrade pat
 
 ---
 
-### 1. Server Logic — RFQ, No Quote Push
+### 1. Server Logic (RFQ, No Quote Push)
 
 **What is implemented:** `POST /api/v1/quotes` locks a price for 30 seconds and returns immediately. The quote is never pushed back to the client when it expires or changes — the client must poll `GET /api/v1/quotes/:id`. The quote execution in `executeTradeTx` is a synchronous SQLite transaction: debit, credit, mark executed, and insert trade, all committed or rolled back together in one `sqlite.transaction()` call.
 
@@ -75,17 +73,17 @@ What was built, the trade off it carries, and the production correct upgrade pat
 
 ---
 
-### 2. Rate Limiting — Sliding Window over a Timestamp Array
+### 2. Rate Limiting (Sliding Window over a Timestamp Array)
 
 **What is implemented:** `RateLimiter` tracks per account request timestamps in a plain `Array`. On each call, timestamps older than the 60 second window are evicted from the front with `shift()`, and the remaining count is checked against the 60 request limit.
 
 - This is the Sliding Window algorithm, most accurate of the five canonical options (Leaky Bucket, Token Bucket, Fixed Window, Sliding Log, Sliding Window). Fixed Window has a boundary vulnerability where a client can burst 2× the limit by firing at the tail of one window and the head of the next and sliding Window eliminates that.
 - `Array.shift()` is O(n) on every check. A double ended queue would give O(1) head removal, which matters when a single account can have hundreds of timestamps in the window.
-- The limiter lives in process memory. A load balancer with two nodes gives each account two independent counters, making the per account cap bypassable. The production fix is a Redis sorted set with an atomic Lua script: `ZREMRANGEBYSCORE` removes stale entries, `ZCARD` returns the count, and `ZADD` appends the new timestamp, all in one round trip with no race.
+- The limiter lives in process memory and a load balancer with two nodes gives each account two independent counters, making the per account cap bypassable.
 
 ---
 
-### 3. Price Aggregation — Best Quote Selection
+### 3. Price Aggregation (Best Quote Selection)
 
 **What is implemented:** `getBestQuote` in `sor.service.ts` fires `Promise.allSettled` against three sources (Binance real, MassiveFX mocked at ±0.01%, CoinGecko mocked at ±0.02%). The fulfilled quotes are collected into an array and sorted: ascending ask for BUY, descending bid for SELL. The first element wins.
 
@@ -94,7 +92,7 @@ What was built, the trade off it carries, and the production correct upgrade pat
 
 ---
 
-### 4. ACID Consistency — Atomic Debit as the Overdraft Guard
+### 4. ACID Consistency (Atomic Debit as the Overdraft Guard)
 
 **What is implemented:** Every trade runs inside `sqlite.transaction()`. The balance debit is a single `UPDATE` with the sufficiency check in the `WHERE` clause not a read followed by a conditional write. The quote status flip from `OPEN` to `EXECUTED` is a guarded `UPDATE WHERE status = 'OPEN'`. If zero rows change, the trade is rejected before any balance moves.
 
@@ -122,8 +120,6 @@ WHERE account_id = ? AND currency = ? AND amount >= ?
 ## How Trades Stay Correct
 
 I implemented the double entry accounting concept which I diagramatically applied for the OpenFX's Pay-in's product implementation.
-
-Two patterns handle correctness under concurrent load:
 
 **Atomic balance debit**: The check and the write are a single statement.
 ```sql
