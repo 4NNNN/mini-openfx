@@ -6,6 +6,10 @@ A minimal, readable FX quoting and trading API
 
 **Live API:** https://mini-openfx-production.up.railway.app
 
+**api.test.ts**: You could just do a E2E integration test against the live hosted server
+```bash
+bun test api.test.ts
+```
 ---
 
 ## Architecture Reference
