@@ -52,7 +52,7 @@ Reaching for Express, Postgres, Redis, and JWT would be an overkill. Instead:
 - **Bun**: Runs HTTP natively via `Bun.serve` so no framework is needed for a five route API.
 - **SQLite**: Handles persistence with zero ops overhead requiring no server, no connection pool, and no configuration.
 - **Drizzle**: Gives type safe queries without hiding the SQL, which matters when atomicity is critical.
-- **In memory Maps**: Serve as the rate limiter and price cache providing clean and sufficient usage for a single process. **The reason I implemented the rate limiter with an array and not a double ended queue**, was to solve the same question which was asked to me in the previous interview round, also implemented the idempotency logic(2nd & 3rd question).
+- **In memory Maps**: Serve as the rate limiter and price cache providing clean and sufficient usage for a single process.
 - **Header based auth**: Kept the domain logic free of token concerns making it easy to test.
 
 ---
